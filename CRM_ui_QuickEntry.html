@@ -1,0 +1,169 @@
+<!-- v3.1.0 -->
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+  body{font:13px/1.4 Arial, sans-serif; padding:10px;}
+  .tabbar{display:flex; gap:6px; margin-bottom:8px;}
+  .tabbar button{padding:6px 10px; border:1px solid #ccc; background:#f5f5f5; cursor:pointer}
+  .tabbar button.active{background:#e8f0fe; border-color:#8ab4f8}
+  .panel{display:none} .panel.active{display:block}
+  input,select,textarea{width:100%; box-sizing:border-box; padding:6px; margin:4px 0 10px; border:1px solid #ccc}
+  .row{display:flex; gap:6px} .row>*{flex:1}
+  .hint{color:#666; font-size:12px; margin-top:-6px; margin-bottom:8px}
+  .ok{color:#0a7} .err{color:#b00}
+  ul.suggest{list-style:none; padding:0; margin:4px 0; max-height:120px; overflow:auto; border:1px solid #ddd}
+  ul.suggest li{padding:6px; cursor:pointer}
+  ul.suggest li:hover{background:#eee}
+</style>
+</head><body>
+  <div class="tabbar">
+    <button id="tabTrial" class="active" onclick="sw('trial')">Deneme</button>
+    <button id="tabPatSale" onclick="sw('ps')">Hasta + Satış</button>
+    <button id="tabInter" onclick="sw('int')">Görüşme</button>
+  </div>
+
+  <!-- Trial -->
+  <div id="p_trial" class="panel active">
+    <div class="row"><div>
+      <label>Ad Soyad</label><input id="t_name">
+    </div><div>
+      <label>Telefon</label><input id="t_phone">
+    </div></div>
+    <div class="row"><div>
+      <label>TC (opsiyonel)</label><input id="t_tc" maxlength="11">
+    </div><div>
+      <label>Adres</label><input id="t_addr">
+    </div></div>
+    <label>Not</label><textarea id="t_note"></textarea>
+    <button onclick="createTrial()">Deneme Oluştur</button>
+    <div id="t_msg"></div>
+  </div>
+
+  <!-- Patient + Sale -->
+  <div id="p_ps" class="panel">
+    <label>Hasta Ara (isim/TC)</label>
+    <input id="ps_search" oninput="searchPeople(this.value)">
+    <ul id="ps_list" class="suggest"></ul>
+    <div class="hint">Seçersen TC otomatik dolar. Yeni hasta için alanları doldur.</div>
+
+    <div class="row"><div>
+      <label>Ad Soyad</label><input id="ps_name">
+    </div><div>
+      <label>TC</label><input id="ps_tc" maxlength="11">
+    </div></div>
+    <div class="row"><div>
+      <label>Telefon</label><input id="ps_phone">
+    </div><div>
+      <label>Adres</label><input id="ps_addr">
+    </div></div>
+    <div class="row"><div>
+      <label>Satış Tarihi</label><input id="ps_date" type="date">
+    </div><div>
+      <label>Net Tutar</label><input id="ps_net" type="number" step="0.01">
+    </div></div>
+    <div class="row"><div>
+      <label>Ödeme Yöntemi</label>
+      <select id="ps_method"><option value="">-</option><option>kart</option><option>nakit</option><option>taksit</option></select>
+    </div><div>
+      <label>Ödeme Yeri</label>
+      <select id="ps_place"><option value="">-</option><option>firma</option><option>çözüm</option></select>
+    </div></div>
+    <div class="row"><div>
+      <label>SGK Kullanımı</label>
+      <select id="ps_sgk"><option value="false">Hayır</option><option value="true">Evet</option></select>
+    </div><div>
+      <label>Deneme ID (satın aldıysa)</label><input id="ps_trialid" placeholder="opsiyonel">
+    </div></div>
+    <label>Not</label><textarea id="ps_note"></textarea>
+    <button onclick="createPatientSale()">Kaydet (Hasta + Satış)</button>
+    <div id="ps_msg"></div>
+  </div>
+
+  <!-- Interaction -->
+  <div id="p_int" class="panel">
+    <label>Kişi Ara (isim/TC/DenemeID)</label>
+    <input id="i_search" oninput="searchPeopleInt(this.value)">
+    <ul id="i_list" class="suggest"></ul>
+
+    <div class="row"><div>
+      <label>Tür</label>
+      <select id="i_type"><option value="patient">Hasta</option><option value="trial">Deneme</option></select>
+    </div><div>
+      <label>ID (TC veya DenemeID)</label><input id="i_id">
+    </div></div>
+    <div class="row"><div>
+      <label>Yöntem</label>
+      <select id="i_method"><option>call</option><option>visit</option><option>msg</option></select>
+    </div><div>
+      <label>Zaman</label><input id="i_when" type="datetime-local">
+    </div></div>
+    <label>Not</label><textarea id="i_note"></textarea>
+    <div class="row"><div>
+      <label>Memnuniyet (0-10)</label><input id="i_sat" type="number" min="0" max="10">
+    </div><div>
+      <label>Sonraki Aksiyon</label><input id="i_next" type="date">
+    </div></div>
+    <button onclick="addInteraction()">Görüşme Kaydet</button>
+    <div id="i_msg"></div>
+  </div>
+
+<script>
+function sw(k){
+  document.querySelectorAll('.tabbar button').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  if(k==='trial'){ tabTrial.classList.add('active'); p_trial.classList.add('active'); }
+  if(k==='ps'){ tabPatSale.classList.add('active'); p_ps.classList.add('active'); }
+  if(k==='int'){ tabInter.classList.add('active'); p_int.classList.add('active'); }
+}
+// Search lists
+function searchPeople(q){
+  google.script.run.withSuccessHandler(arr=>{
+    ps_list.innerHTML=arr.map(x=>`<li onclick="pickPS('${x.type}','${x.id}','${x.label.replace(/'/g,"&#39;")}')">${x.label}</li>`).join('');
+  }).qe_searchPeople(q);
+}
+function pickPS(type,id,label){
+  if(type==='patient'){ document.getElementById('ps_tc').value=id; }
+  const txt=label.replace(/^\[.*?\]\s*/,'').split('•')[0].trim();
+  document.getElementById('ps_name').value=txt;
+  ps_list.innerHTML='';
+}
+function searchPeopleInt(q){
+  google.script.run.withSuccessHandler(arr=>{
+    i_list.innerHTML=arr.map(x=>`<li onclick="pickINT('${x.type}','${x.id}','${x.label.replace(/'/g,"&#39;")}')">${x.label}</li>`).join('');
+  }).qe_searchPeople(q);
+}
+function pickINT(type,id,label){
+  i_type.value=type; i_id.value=id; i_list.innerHTML='';
+}
+// Actions
+function createTrial(){
+  const payload={
+    full_name: t_name.value, phone: t_phone.value, tc: t_tc.value, address: t_addr.value, notes: t_note.value
+  };
+  google.script.run.withSuccessHandler(r=>{ t_msg.innerHTML=`<span class=ok>Deneme açıldı • ID: ${r.trial_id}</span>`; })
+                   .withFailureHandler(e=>{ t_msg.innerHTML=`<span class=err>${e.message}</span>`; })
+                   .qe_createTrial(payload);
+}
+function createPatientSale(){
+  const payload={
+    full_name: ps_name.value, tc: ps_tc.value, phone: ps_phone.value, address: ps_addr.value,
+    purchase_date: ps_date.value, price_net: ps_net.value, payment_method: ps_method.value,
+    payment_place: ps_place.value, uses_sgk: ps_sgk.value==='true', notes: ps_note.value,
+    trial_id: ps_trialid.value || null
+  };
+  google.script.run.withSuccessHandler(r=>{ ps_msg.innerHTML=`<span class=ok>Kaydedildi • Satış ID: ${r.sale_id} • TC: ${r.tc}</span>`; })
+                   .withFailureHandler(e=>{ ps_msg.innerHTML=`<span class=err>${e.message}</span>`; })
+                   .qe_createPatientWithSale(payload);
+}
+function addInteraction(){
+  const payload={
+    type: i_type.value, id: i_id.value, method: i_method.value,
+    when: i_when.value, note: i_note.value,
+    satisfaction: i_sat.value?Number(i_sat.value):null,
+    next_action_at: i_next.value||null
+  };
+  google.script.run.withSuccessHandler(()=>{ i_msg.innerHTML=`<span class=ok>Görüşme kaydedildi</span>`; })
+                   .withFailureHandler(e=>{ i_msg.innerHTML=`<span class=err>${e.message}</span>`; })
+                   .qe_addInteraction(payload);
+}
+</script>
+</body></html>

@@ -1,0 +1,280 @@
+<!-- v3.4.0 | Full-screen grid Patient Card (summary + 3 columns; lazy render; mobile-first) -->
+<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{
+    --gap:10px; --bd:#e0e0e0; --mut:#666; --fg:#222; --ok:#0a7; --err:#b00;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; font:13px/1.4 Arial, sans-serif; color:var(--fg)}
+  .head{position:sticky; top:0; z-index:10; background:#fff; padding:10px; border-bottom:1px solid var(--bd); display:flex; gap:8px; align-items:center}
+  .head .left{flex:1; min-width:240px}
+  input[type=text]{width:100%; padding:8px; border:1px solid #ccc; border-radius:4px}
+  .btn{padding:8px 12px; border:1px solid #aaa; background:#f5f5f5; cursor:pointer; border-radius:4px}
+  ul#sug{list-style:none; margin:6px 0 0; padding:0; border:1px solid #ddd; max-height:180px; overflow:auto}
+  #sug li{padding:8px; cursor:pointer}
+  #sug li:hover{background:#eee}
+  .sum{display:flex; flex-wrap:wrap; gap:8px; padding:10px; border-bottom:1px solid var(--bd)}
+  .chip{border:1px solid var(--bd); border-radius:6px; padding:6px 8px; background:#fafafa; min-height:30px}
+  .chip b{display:block; font-size:11px; color:var(--mut)}
+  .chip span{font-size:13px}
+  .wrap{padding:10px}
+  .grid{
+    display:grid; gap:var(--gap);
+    grid-template-columns: 1.2fr 2fr 1.4fr;
+    grid-template-areas:
+      "general visits sales"
+      "devices visits sales"
+      "access visits sales"
+      "appts visits sales";
+  }
+  .section{border:1px solid var(--bd); border-radius:6px; padding:8px; background:#fff; min-height:60px}
+  .section h4{margin:0 0 8px 0; font-size:14px}
+  .kv{display:grid; grid-template-columns:130px 1fr; gap:6px 10px; align-items:center}
+  .kv b{color:#444}
+  .mut{color:var(--mut)}
+  .ok{color:var(--ok)} .err{color:var(--err)}
+  table.table{width:100%; border-collapse:collapse; font-size:12px}
+  .table th,.table td{border:1px solid #ddd; padding:4px 6px; vertical-align:top}
+  .table th{background:#fafafa; text-align:left}
+  #secGeneral{grid-area:general}
+  #secVisits{grid-area:visits}
+  #secSales{grid-area:sales}
+  #secDevices{grid-area:devices}
+  #secAccess{grid-area:access}
+  #secAppts{grid-area:appts}
+  @media (max-width: 980px){
+    .grid{
+      grid-template-columns:1fr;
+      grid-template-areas:
+        "general"
+        "sales"
+        "devices"
+        "access"
+        "visits"
+        "appts";
+    }
+    .kv{grid-template-columns:100px 1fr}
+  }
+</style>
+</head><body>
+
+  <div class="head">
+    <div class="left">
+      <input id="q" type="text" placeholder="İsim veya TC ile ara" oninput="search()">
+      <ul id="sug"></ul>
+    </div>
+    <div class="right">
+      <button class="btn" onclick="window.print()">Yazdır</button>
+      <button class="btn" onclick="renderSheet()">Sayfaya Yaz</button>
+    </div>
+  </div>
+
+  <div id="card" style="display:none">
+    <div class="sum" id="sum"></div>
+
+    <div class="wrap">
+      <div class="grid">
+        <div class="section" id="secGeneral">
+          <h4 id="title">Hasta</h4>
+          <div class="kv">
+            <b>TC</b><div id="tc"></div>
+            <b>Telefon</b><div id="phone"></div>
+            <b>Adres</b><div id="addr"></div>
+            <b>Son Görüşme</b><div id="last"></div>
+            <b>Sonraki Temas</b><div id="next"></div>
+            <b>Görüşme Sayısı</b><div id="cc"></div>
+            <b>Uyarı</b><div id="flag"></div>
+            <b>Son Ödeme</b><div id="pay"></div>
+            <b>SGK</b><div id="sgk"></div>
+            <b>Memnuniyet</b><div id="sat"></div>
+            <b>Not</b><div id="note"></div>
+          </div>
+        </div>
+
+        <div class="section" id="secVisits">
+          <h4>Görüşmeler</h4>
+          <table class="table" id="tblInt"></table>
+        </div>
+
+        <div class="section" id="secSales">
+          <h4>Satışlar</h4>
+          <table class="table" id="tblSales"></table>
+        </div>
+
+        <div class="section" id="secDevices">
+          <h4>Cihazlar</h4>
+          <table class="table" id="tblDev"></table>
+        </div>
+
+        <div class="section" id="secAccess">
+          <h4>Aksesuarlar</h4>
+          <table class="table" id="tblAcc"></table>
+        </div>
+
+        <div class="section" id="secAppts">
+          <h4>Randevular</h4>
+          <table class="table" id="tblAppt"></table>
+        </div>
+      </div>
+      <div id="msg" class="mut" style="margin-top:8px"></div>
+    </div>
+  </div>
+
+<script>
+  const E = id => document.getElementById(id);
+
+  function search(){
+    google.script.run.withSuccessHandler(arr=>{
+      E('sug').innerHTML = arr.map(x=>(
+        `<li onclick="pick('${x.tc}','${x.name.replace(/'/g,'&#39;')}')">${x.name} • ${x.tc}</li>`
+      )).join('');
+    }).pc_searchPeople(E('q').value);
+  }
+
+  function pick(tc,name){
+    E('sug').innerHTML='';
+    E('q').value = name + ' • ' + tc;
+    load(tc);
+  }
+
+  function load(tc){
+    E('msg').textContent='Yükleniyor...';
+    google.script.run
+      .withSuccessHandler(draw)
+      .withFailureHandler(e=>{ E('msg').innerHTML=`<span class=err>${e.message}</span>`; })
+      .pc_getPatientCard(tc);
+  }
+
+  function draw(d){
+    E('card').style.display='block';
+
+    E('title').textContent = d.patient.full_name || 'Hasta';
+    E('tc').textContent = d.patient.tc || '';
+    E('phone').textContent = d.patient.phone || '';
+    E('addr').textContent = d.patient.address || '';
+    E('last').textContent = d.patient.last_contact_at || '';
+    E('next').textContent = d.patient.next_contact_at || '';
+    E('cc').textContent = d.patient.contact_count||0;
+    E('flag').textContent = d.patient.stale_flag||'';
+    E('pay').textContent = `${d.patient.last_payment_place||'-'} / ${d.patient.last_payment_method||'-'} / Net: ${d.patient.paid_amount_last||'-'}`;
+    E('sgk').textContent = (d.patient.uses_sgk?'Kullanır':'Kullanmaz') + ` | Rapor:${d.patient.last_sgk_report_received?'Evet':'Hayır'} | Sistem:${d.patient.last_sgk_system_entered?'Evet':'Hayır'}`;
+    E('sat').textContent = `Son: ${nz(d.patient.satisfaction_last,'-')} | 90g: ${nz(d.patient.satisfaction_avg,'-')}`;
+    E('note').textContent = d.patient.notes||'';
+
+    const activeDev = latestDevice(d.devices);
+    const totalSpend = (d.patient.total_spend != null) ? d.patient.total_spend : sumNet(d.sales);
+    E('sum').innerHTML = [
+      chip('Name', d.patient.full_name||'-'),
+      chip('TC', d.patient.tc||'-'),
+      chip('Last Contact', d.patient.last_contact_at||'-'),
+      chip('Next Contact', d.patient.next_contact_at||'-'),
+      chip('Satisfaction (avg90)', nz(d.patient.satisfaction_avg,'-')),
+      chip('Total Spend', fmtCur(totalSpend)),
+      chip('Active Device', activeDev||'-')
+    ].join('');
+
+    requestAnimationFrame(()=>{
+      renderSales(d.sales);
+      requestAnimationFrame(()=>{
+        renderDevices(d.devices);
+        requestAnimationFrame(()=>{
+          renderAccessories(d.accessories||[]);
+          requestAnimationFrame(()=>{
+            renderInteractions(d.interactions||[]);
+            requestAnimationFrame(()=>renderAppts(d.appts||[]));
+          });
+        });
+      });
+    });
+
+    E('msg').textContent='';
+  }
+
+  function chip(label, val){ return `<div class="chip"><b>${label}</b><span>${val}</span></div>`; }
+  function nz(v,def){ return (v===undefined||v===null||v==='')?def:v; }
+
+  function renderSales(arr){
+    const head=['Satış ID','Tarih','Net','Yöntem','Yer','Fatura','SGK','Seri','Barkod'];
+    const rows = arr && arr.length ? arr.map(x=>[
+      x.sale_id, fmtDate(x.sale_date), nz(x.price_net,''), x.payment_method||'', x.payment_place||'',
+      x.invoice_issued?'Evet':'Hayır', x.uses_sgk?'Evet':'Hayır', x.serial_no||'', x.barcode||''
+    ]) : null;
+    E('tblSales').innerHTML = thead(head) + tbody(rows, head.length);
+  }
+
+  function renderDevices(arr){
+    const head=['GrupID','Taraf','Seri','Barkod','Teslim','Güç','Not'];
+    const rows = arr && arr.length ? arr.map(x=>[
+      x.device_group_id||'', x.side||'', x.serial_no||'', x.barcode||'',
+      fmtDate(x.given_date), x.power_type||'', x.notes||''
+    ]) : null;
+    E('tblDev').innerHTML = thead(head) + tbody(rows, head.length);
+  }
+
+  function renderAccessories(arr){
+    const head=['GrupID','Tür','Seri','Barkod','Adet','Not'];
+    const rows = arr && arr.length ? arr.map(x=>[
+      x.device_group_id||'', x.type||'', x.serial_no||'', x.barcode||'',
+      x.qty||'', x.notes||''
+    ]) : null;
+    E('tblAcc').innerHTML = thead(head) + tbody(rows, head.length);
+  }
+
+  function renderInteractions(arr){
+    const head=['Zaman','Yöntem','Not','Mem'];
+    const rows = arr && arr.length ? arr.map(x=>[
+      fmtDate(x.when), x.method||'', x.note||'', nz(x.satisfaction,'')
+    ]) : null;
+    E('tblInt').innerHTML = thead(head) + tbody(rows, head.length);
+  }
+
+  function renderAppts(arr){
+    const head=['Durum','Başlık','Başlangıç','Bitiş','Konum'];
+    const rows = arr && arr.length ? arr.map(x=>[
+      x.status||'', x.title||'', fmtDate(x.start), fmtDate(x.end), x.location||''
+    ]) : null;
+    E('tblAppts').innerHTML = thead(head) + tbody(rows, head.length);
+  }
+
+  function thead(cols){ return `<thead><tr>${cols.map(h=>`<th>${h}</th>`).join('')}</tr></thead>`; }
+  function tbody(rows, span){
+    if(!rows){ return `<tbody><tr><td colspan="${span}">Kayıt yok</td></tr></tbody>`; }
+    return `<tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c??''}</td>`).join('')}</tr>`).join('')}</tbody>`;
+  }
+
+  function fmtDate(v){
+    if(!v) return '';
+    try{
+      const d=new Date(v); if(isNaN(d)) return String(v);
+      const pad=n=>('0'+n).slice(-2);
+      return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+    }catch(e){ return String(v); }
+  }
+
+  function sumNet(sales){ let t=0; for(let i=0;i<(sales||[]).length;i++){ t += Number(sales[i].price_net||0); } return t; }
+  function latestDevice(devs){
+    if(!devs || !devs.length) return '';
+    const d = [...devs].sort((a,b)=>new Date(b.given_date)-new Date(a.given_date))[0];
+    const side = d.side?` (${d.side})`:'';
+    return (d.serial_no||d.barcode||'Device') + side;
+    }
+
+  function fmtCur(v){
+    const n = Number(v||0);
+    try{ return new Intl.NumberFormat('tr-TR',{style:'currency',currency:'TRY',maximumFractionDigits:0}).format(n); }
+    catch(e){ return String(n); }
+  }
+
+  function renderSheet(){
+    const tcTxt = (E('q').value.split('•').pop()||'').trim();
+    const m = tcTxt.match(/\d{11}/);
+    const tc = m? m[0] : '';
+    if(!tc){ E('msg').innerHTML='<span class=err>TC bulunamadı.</span>'; return; }
+    google.script.run
+      .withSuccessHandler(()=>{ E('msg').innerHTML='<span class=ok>HastaKartı sayfası güncellendi.</span>'; })
+      .withFailureHandler(e=>{ E('msg').innerHTML=`<span class=err>${e.message}</span>`; })
+      .pc_renderToSheet(tc);
+  }
+</script>
+</body></html>
