@@ -74,14 +74,14 @@ function qe_normalizePayload_(payload){
     const priceValue = raw.price_net != null ? raw.price_net : raw.price;
     const hasPriceValue = !(priceValue === undefined || priceValue === null || String(priceValue).trim() === '');
     if(!model && !hasPriceValue){ continue; }
-    if(!model){ throw qe_error_('invalid_device_model','Device model is required'); }
+    if(!model){ throw qe_error_('invalid_offer_model','Offer model is required'); }
     const price = Number(priceValue);
-    if(!isFinite(price) || price <= 0){ throw qe_error_('invalid_device_price','Device price must be greater than zero'); }
+    if(!isFinite(price) || price <= 0){ throw qe_error_('invalid_offer_price','Offer price must be greater than zero'); }
     const qtyRaw = raw.qty != null ? Number(raw.qty) : 1;
     const qty = isFinite(qtyRaw) && qtyRaw > 0 ? qtyRaw : 1;
     offers.push({model, price_net: price, qty});
   }
-  if(!offers.length){ throw qe_error_('missing_devices','At least one device is required'); }
+  if(!offers.length){ throw qe_error_('missing_offers','At least one offer is required'); }
 
   const sgk = String(payload.sgk || '').trim();
   if(!sgk){ throw qe_error_('missing_sgk','SGK required'); }

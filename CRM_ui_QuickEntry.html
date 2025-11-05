@@ -126,9 +126,9 @@
       missing_trial_initial_at:'First meeting date is required.',
       missing_trial_next_at:'Next meeting date is required.',
       missing_note:'Note is required.',
-      missing_devices:'Add at least one device with model and price.',
-      invalid_device_model:'Each device row needs a model.',
-      invalid_device_price:'Device price must be greater than zero.',
+      missing_offers:'Add at least one offer with model and price.',
+      invalid_offer_model:'Each offer row needs a model.',
+      invalid_offer_price:'Offer price must be greater than zero.',
       missing_sgk:'Select SGK: Var or Yok.'
     };
 
@@ -239,7 +239,7 @@
       const offerResult=collectOffers();
       if(offerResult.error){ return {error:offerResult.error}; }
       const payload={ person, trial, sgk, offers:offerResult.offers };
-      if(!payload.offers.length){ return {error:{code:'missing_devices'}}; }
+      if(!payload.offers.length){ return {error:{code:'missing_offers'}}; }
       return {payload};
     }
 
@@ -253,9 +253,9 @@
         const model=(modelInput?modelInput.value:'').trim();
         const priceValue=(priceInput?priceInput.value:'').trim();
         if(!model && !priceValue){ continue; }
-        if(!model){ return {error:{code:'invalid_device_model'}}; }
+        if(!model){ return {error:{code:'invalid_offer_model'}}; }
         const price=Number(priceValue);
-        if(!priceValue || !isFinite(price) || price<=0){ return {error:{code:'invalid_device_price'}}; }
+        if(!priceValue || !isFinite(price) || price<=0){ return {error:{code:'invalid_offer_price'}}; }
         rows.push({model, price_net:price, qty:1});
       }
       return {offers:rows};
@@ -269,7 +269,7 @@
       if(!(payload.trial.next_at instanceof Date) || isNaN(payload.trial.next_at.getTime())){ return 'missing_trial_next_at'; }
       if(!payload.trial.note){ return 'missing_note'; }
       if(!payload.sgk){ return 'missing_sgk'; }
-      if(!payload.offers.length){ return 'missing_devices'; }
+      if(!payload.offers.length){ return 'missing_offers'; }
       return null;
     }
 
