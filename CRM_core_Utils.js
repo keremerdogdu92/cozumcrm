@@ -1,6 +1,6 @@
-/* v3.7.0
+/* v3.8.0
  * CHANGELOG:
- * - Added HTML escaping and device summary helpers for secure quick entry notes.
+ * - Documented compatibility with SGK-aware trial quick entry offers.
  * - Keeps header-cache, slugification, and row IO utilities aligned with trial updates.
  * - Moved Quick Entry shared helpers (errors, date parsing, prefixed ids) into core utils.
  */

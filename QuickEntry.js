@@ -27,13 +27,15 @@ function qe_upsertTrialCase(payload){
     const offerSummary = joinDeviceSummary(normalized.offers);
     const offerTotal = qe_sumOffers_(normalized.offers);
     const offersJson = JSON.stringify(normalized.offers);
+    const contactDetail = qe_buildTrialNote_(normalized.trial.note, offerSummary, normalized.sgk);
     const trial = qe_upsertTrial_(patient, normalized.trial, normalized.person, stamp, {
       offerSummary,
       offerTotal,
       offersJson,
-      usesSgk: normalized.sgk
+      usesSgk: normalized.sgk,
+      contactDetail
     });
-    qe_appendTrialContactLog_(patient, trial, normalized, stamp, offerSummary);
+    qe_appendTrialContactLog_(patient, trial, normalized, stamp, contactDetail);
     qe_queueDashboardRefresh_();
     return {ok:true, patient_slug:patient.slug, trial_id:trial.trial_id};
   }catch(err){
@@ -49,7 +51,9 @@ function qe_normalizePayload_(payload){
   if(!payload || typeof payload !== 'object'){ throw qe_error_('bad_payload','Payload must be an object'); }
   const personRaw = payload.person || {};
   const trialRaw = payload.trial || {};
-  const offersRaw = Array.isArray(payload.offers) ? payload.offers : [];
+  const devicesRaw = Array.isArray(payload.devices) ? payload.devices : [];
+  const offersRaw = (Array.isArray(payload.offers) && payload.offers.length) ? payload.offers : devicesRaw;
+  const saleRaw = payload.sale || {};
 
   const fullName = String(personRaw.full_name || '').trim();
   if(!fullName){ throw qe_error_('missing_full_name','Full name is required'); }
@@ -83,9 +87,13 @@ function qe_normalizePayload_(payload){
   }
   if(!offers.length){ throw qe_error_('missing_offers','At least one offer is required'); }
 
-  const sgk = String(payload.sgk || '').trim();
+  const sgkCandidates = [payload.sgk, saleRaw.sgk, saleRaw.uses_sgk, saleRaw.payer];
+  let sgk = '';
+  for(let i=0;i<sgkCandidates.length;i++){
+    sgk = qe_normalizeSgkValue_(sgkCandidates[i]);
+    if(sgk){ break; }
+  }
   if(!sgk){ throw qe_error_('missing_sgk','SGK required'); }
-  if(sgk !== 'Var' && sgk !== 'Yok'){ throw qe_error_('missing_sgk','SGK required'); }
 
   const person = {
     full_name: fullName,
@@ -160,6 +168,7 @@ function qe_upsertTrial_(patient, trial, person, stamp, extras){
   rowObj.ref_key = person.ref;
   const previousCount = Number(existing && existing.object && existing.object.contact_count ? existing.object.contact_count : 0);
   rowObj.contact_count = previousCount + 1;
+  const contactDetail = extras && extras.contactDetail ? extras.contactDetail : trial.note;
   if(extras){
     rowObj.offer_summary = extras.offerSummary || '';
     rowObj.offer_total_net = extras.offerTotal || 0;
@@ -167,7 +176,7 @@ function qe_upsertTrial_(patient, trial, person, stamp, extras){
     rowObj.uses_sgk = extras.usesSgk || '';
   }
   const existingNotes = existing ? String(existing.object.notes || '') : '';
-  const entry = fmt(trial.initial_at)+' - '+trial.note;
+  const entry = fmt(trial.initial_at)+' - '+contactDetail;
   const combined = existingNotes ? (existingNotes+'\n'+entry) : entry;
   rowObj.notes = qe_trimNotes_(combined);
   if(!existing){
@@ -185,15 +194,14 @@ function qe_upsertTrial_(patient, trial, person, stamp, extras){
   return {trial_id:trialId, row:existing.row};
 }
 
-function qe_appendTrialContactLog_(patient, trial, normalized, stamp, offerSummary){
-  const partsNote = qe_buildTrialNote_(normalized.trial.note, offerSummary, normalized.sgk);
+function qe_appendTrialContactLog_(patient, trial, normalized, stamp, noteDetail){
   const row = {
     log_id: makePrefixedUuid_('LOG'),
     who_type: 'patient',
     who_id: patient.patient_id,
     method: 'visit',
     when: normalized.trial.initial_at,
-    note: partsNote,
+    note: noteDetail,
     type: 'trial_contact',
     next_action_at: normalized.trial.next_at,
     created_at: stamp
@@ -208,6 +216,19 @@ function qe_buildTrialNote_(note, offerSummary, sgk){
   if(offerSummary){ parts.push(offerSummary); }
   if(sgk){ parts.push('SGK: '+sgk); }
   return parts.join(' | ');
+}
+
+function qe_normalizeSgkValue_(raw){
+  if(raw === undefined || raw === null){ return ''; }
+  if(raw === true || raw === 'true' || raw === 1 || raw === '1'){ return 'Var'; }
+  if(raw === false || raw === 'false' || raw === 0 || raw === '0'){ return 'Yok'; }
+  const str = String(raw).trim();
+  if(!str){ return ''; }
+  const lower = str.toLowerCase();
+  if(lower === 'var' || lower === 'sgk' || lower === 'yes' || lower === 'evet'){ return 'Var'; }
+  if(lower === 'yok' || lower === 'no' || lower === 'hayir' || lower === 'hayır' || lower === 'private' || lower === 'ozel' || lower === 'none'){ return 'Yok'; }
+  if(str === 'Var' || str === 'Yok'){ return str; }
+  return '';
 }
 
 function qe_sumOffers_(offers){
