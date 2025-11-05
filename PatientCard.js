@@ -1,19 +1,8 @@
-/* v3.4.0 | Patient Card: add total_spend in patient summary; keep DTO stable */
+/* v3.5.1 | Patient Card: slug-aware search and header-safe DTO building */
 function openPatientCard(){
   SpreadsheetApp.getUi()
     .showSidebar(HtmlService.createHtmlOutputFromFile('UiPatientCard').setTitle('CRM • Hasta Kartı'));
 }
-function onOpen(){
-  SpreadsheetApp.getUi().createMenu('CRM')
-    .addItem('Hızlı Giriş','openQuickEntry')
-    .addItem('Hasta Kartı','openPatientCard')
-    .addItem('Refresh Dashboard','refreshDashboard')
-    .addItem('Sync Calendar','syncCalendarFromAppointments')
-    .addItem('Update Inventory','updateInventoryStatus')
-    .addItem('Send Daily Reminders','sendDailyReminders')
-    .addToUi();
-}
-
 function pc_searchPeople(q){
   q=String(q||'').toLowerCase().trim();
   const out=[]; const P=sh('Hastalar'); if(!P) return out;
@@ -21,42 +10,62 @@ function pc_searchPeople(q){
   for(let r=3;r<vals.length;r++){
     const name=String(vals[r][idx['full_name']-1]||'');
     const tc  =String(vals[r][idx['tc']-1]||'');
-    if(!name||!tc) continue;
-    if(!q || name.toLowerCase().includes(q) || tc.includes(q)) out.push({tc, name});
+    const slug=idx['slug']?String(vals[r][idx['slug']-1]||''):'';
+    if(!name) continue;
+    const key = tc || slug;
+    if(!key) continue;
+    const hay=[name.toLowerCase(), tc, slug].join(' ');
+    if(!q || hay.includes(q)) out.push({tc:key, name:slug?`${name} • ${slug}`:name});
   }
   return out.slice(0,50);
 }
 
-function pc_getPatientCard(tc){
-  tc=String(tc||'').trim();
+function pc_getPatientCard(identifier){
+  const id=String(identifier||'').trim();
   const nowD = new Date();
 
   const P=sh('Hastalar'); const pIdx=headerIndex_(P);
+  const read = (map, row, key) => {
+    if(!map) return '';
+    const col = map[key];
+    return col ? row[col-1] : '';
+  };
+  const readBool = (map, row, key) => {
+    if(!map) return false;
+    const col = map[key];
+    return col ? row[col-1] === true : false;
+  };
   let prow=null, pRowVals=null;
   for(let r=3;r<=P.getLastRow();r++){
-    if(String(P.getRange(r,pIdx['tc']).getValue())===tc){
-      prow=r; pRowVals=P.getRange(r,1,1,P.getLastColumn()).getValues()[0]; break;
+    const row=P.getRange(r,1,1,P.getLastColumn()).getValues()[0];
+    const tcVal = String(read(pIdx, row, 'tc')||'');
+    const slugVal = String(read(pIdx, row, 'slug')||'');
+    if(id && (id===tcVal || id===slugVal)){
+      prow=r; pRowVals=row; break;
     }
   }
   if(!prow) throw new Error('Hasta bulunamadı');
 
+  const patientId = read(pIdx, pRowVals, 'patient_id') || id;
+  const tc = String(read(pIdx, pRowVals, 'tc')||'');
+
   const S=sh('Satışlar'); const sIdx=headerIndex_(S);
   const sVals=S.getDataRange().getValues(); const sales=[];
   for(let i=1;i<sVals.length;i++){
-    const r=sVals[i]; if(String(r[sIdx['patient_id']-1]||'')!==tc) continue;
+    const r=sVals[i]; if(String(read(sIdx, r, 'patient_id')||'')!==String(patientId)) continue;
     sales.push({
-      sale_id: r[sIdx['sale_id']-1]||'',
-      sale_date: r[sIdx['sale_date']-1]||'',
-      price_net: Number(r[sIdx['price_net']-1]||0),
-      payment_method: r[sIdx['payment_method']-1]||'',
-      payment_place: r[sIdx['payment_place']-1]||'',
-      invoice_issued: r[sIdx['invoice_issued']-1]===true,
-      uses_sgk: r[sIdx['uses_sgk']-1]===true,
-      sgk_report_received: r[sIdx['sgk_report_received']-1]===true,
-      sgk_system_entered: r[sIdx['sgk_system_entered']-1]===true,
-      serial_no: r[sIdx['serial_no']-1]||'',
-      barcode:   r[sIdx['barcode']-1]||'',
-      notes:     r[sIdx['notes']-1]||''
+      sale_id: read(sIdx, r, 'sale_id')||'',
+      sale_date: read(sIdx, r, 'sale_date')||'',
+      price_net: Number(read(sIdx, r, 'price_net')||0),
+      payment_method: read(sIdx, r, 'payment_method')||'',
+      payment_place: read(sIdx, r, 'payment_place')||'',
+      invoice_issued: readBool(sIdx, r, 'invoice_issued'),
+      uses_sgk: readBool(sIdx, r, 'uses_sgk'),
+      sgk_report_received: readBool(sIdx, r, 'sgk_report_received'),
+      sgk_system_entered: readBool(sIdx, r, 'sgk_system_entered'),
+      serial_no: read(sIdx, r, 'serial_no')||'',
+      barcode:   read(sIdx, r, 'barcode')||'',
+      notes:     read(sIdx, r, 'notes')||''
     });
   }
 
@@ -64,13 +73,14 @@ function pc_getPatientCard(tc){
   const iVals=I.getDataRange().getValues(); const interactions=[];
   for(let i=1;i<iVals.length;i++){
     const r=iVals[i];
-    if(String(r[iIdx['who_type']-1]||'')!=='patient') continue;
-    if(String(r[iIdx['who_id']-1]||'')!==tc) continue;
+    if(String(read(iIdx, r, 'who_type')||'')!=='patient') continue;
+    if(String(read(iIdx, r, 'who_id')||'')!==String(patientId)) continue;
+    const noteVal = read(iIdx, r, 'note') || read(iIdx, r, 'patient_note') || '';
     interactions.push({
-      when: r[iIdx['when']-1]||'',
-      method: r[iIdx['method']-1]||'',
-      note: r[iIdx['patient_note']-1]||'',
-      satisfaction: r[iIdx['satisfaction']-1]
+      when: read(iIdx, r, 'when')||'',
+      method: read(iIdx, r, 'method')||'',
+      note: noteVal,
+      satisfaction: read(iIdx, r, 'satisfaction')||''
     });
   }
 
@@ -78,14 +88,14 @@ function pc_getPatientCard(tc){
   const aVals=A.getDataRange().getValues(); const appts=[];
   for(let i=1;i<aVals.length;i++){
     const r=aVals[i];
-    if(String(r[aIdx['who_type']-1]||'')!=='patient') continue;
-    if(String(r[aIdx['who_id']-1]||'')!==tc) continue;
+    if(String(read(aIdx, r, 'who_type')||'')!=='patient') continue;
+    if(String(read(aIdx, r, 'who_id')||'')!==String(patientId)) continue;
     appts.push({
-      status: r[aIdx['status']-1]||'',
-      title:  r[aIdx['title']-1]||'',
-      start:  r[aIdx['start_datetime']-1]||'',
-      end:    r[aIdx['end_datetime']-1]||'',
-      location: r[aIdx['location']-1]||''
+      status: read(aIdx, r, 'status')||'',
+      title:  read(aIdx, r, 'title')||'',
+      start:  read(aIdx, r, 'start_datetime')||'',
+      end:    read(aIdx, r, 'end_datetime')||'',
+      location: read(aIdx, r, 'location')||''
     });
   }
 
@@ -94,15 +104,15 @@ function pc_getPatientCard(tc){
   if(D){
     const dVals=D.getDataRange().getValues();
     for(let i=1;i<dVals.length;i++){
-      const r=dVals[i]; if(String(r[dIdx['patient_id']-1]||'')!==tc) continue;
+      const r=dVals[i]; if(String(read(dIdx, r, 'patient_id')||'')!==String(patientId)) continue;
       devices.push({
-        device_group_id: r[dIdx['device_group_id']-1]||'',
-        side: r[dIdx['side']-1]||'',
-        serial_no: r[dIdx['serial_no']-1]||'',
-        barcode: r[dIdx['barcode']-1]||'',
-        given_date: r[dIdx['given_date']-1]||'',
-        power_type: r[dIdx['power_type']-1]||'',
-        notes: r[dIdx['notes']-1]||''
+        device_group_id: read(dIdx, r, 'device_group_id')||'',
+        side: read(dIdx, r, 'side')||'',
+        serial_no: read(dIdx, r, 'serial_no')||'',
+        barcode: read(dIdx, r, 'barcode')||'',
+        given_date: read(dIdx, r, 'given_date')||'',
+        power_type: read(dIdx, r, 'power_type')||'',
+        notes: read(dIdx, r, 'notes')||''
       });
     }
   }
@@ -112,14 +122,14 @@ function pc_getPatientCard(tc){
   if(Aks){
     const axVals=Aks.getDataRange().getValues();
     for(let i=1;i<axVals.length;i++){
-      const r=axVals[i]; if(String(r[axIdx['patient_id']-1]||'')!==tc) continue;
+      const r=axVals[i]; if(String(read(axIdx, r, 'patient_id')||'')!==String(patientId)) continue;
       accessories.push({
-        device_group_id: r[axIdx['device_group_id']-1]||'',
-        type: r[axIdx['type']-1]||'',
-        serial_no: r[axIdx['serial_no']-1]||'',
-        barcode: r[axIdx['barcode']-1]||'',
-        qty: r[axIdx['qty']-1]||'',
-        notes: r[axIdx['notes']-1]||''
+        device_group_id: read(axIdx, r, 'device_group_id')||'',
+        type: read(axIdx, r, 'type')||'',
+        serial_no: read(axIdx, r, 'serial_no')||'',
+        barcode: read(axIdx, r, 'barcode')||'',
+        qty: read(axIdx, r, 'qty')||'',
+        notes: read(axIdx, r, 'notes')||''
       });
     }
   }
@@ -132,25 +142,27 @@ function pc_getPatientCard(tc){
 
   const patient = {
     tc,
-    full_name: pRowVals[pIdx['full_name']-1]||'',
-    phone:     pRowVals[pIdx['phone']-1]||'',
-    address:   pRowVals[pIdx['address']-1]||'',
-    purchase_date: pRowVals[pIdx['purchase_date']-1]||'',
-    paid_amount_last: pRowVals[pIdx['paid_amount_last']-1]||'',
-    last_contact_at: pRowVals[pIdx['last_contact_at']-1]||'',
-    next_contact_at: pRowVals[pIdx['next_contact_at']-1]||'',
-    contact_count: pRowVals[pIdx['contact_count']-1]||0,
-    days_since_last: pRowVals[pIdx['days_since_last']-1]||'',
-    limit_days_effective: pRowVals[pIdx['limit_days_effective']-1]||'',
-    stale_flag: pRowVals[pIdx['stale_flag']-1]||'',
-    last_payment_place: pRowVals[pIdx['last_payment_place']-1]||'',
-    last_payment_method: pRowVals[pIdx['last_payment_method']-1]||'',
-    uses_sgk: pRowVals[pIdx['uses_sgk']-1]||false,
-    last_sgk_report_received: pRowVals[pIdx['last_sgk_report_received']-1]||false,
-    last_sgk_system_entered: pRowVals[pIdx['last_sgk_system_entered']-1]||false,
-    satisfaction_last: pRowVals[pIdx['satisfaction_last']-1]||'',
-    satisfaction_avg: pRowVals[pIdx['satisfaction_avg']-1]||'',
-    notes: pRowVals[pIdx['notes']-1]||'',
+    full_name: read(pIdx, pRowVals, 'full_name')||'',
+    slug: read(pIdx, pRowVals, 'slug')||'',
+    patient_id: patientId,
+    phone:     read(pIdx, pRowVals, 'phone')||'',
+    address:   read(pIdx, pRowVals, 'address')||'',
+    purchase_date: read(pIdx, pRowVals, 'purchase_date')||'',
+    paid_amount_last: read(pIdx, pRowVals, 'paid_amount_last')||'',
+    last_contact_at: read(pIdx, pRowVals, 'last_contact_at')||'',
+    next_contact_at: read(pIdx, pRowVals, 'next_contact_at')||'',
+    contact_count: read(pIdx, pRowVals, 'contact_count')||0,
+    days_since_last: read(pIdx, pRowVals, 'days_since_last')||'',
+    limit_days_effective: read(pIdx, pRowVals, 'limit_days_effective')||'',
+    stale_flag: read(pIdx, pRowVals, 'stale_flag')||'',
+    last_payment_place: read(pIdx, pRowVals, 'last_payment_place')||'',
+    last_payment_method: read(pIdx, pRowVals, 'last_payment_method')||'',
+    uses_sgk: readBool(pIdx, pRowVals, 'uses_sgk'),
+    last_sgk_report_received: readBool(pIdx, pRowVals, 'last_sgk_report_received'),
+    last_sgk_system_entered: readBool(pIdx, pRowVals, 'last_sgk_system_entered'),
+    satisfaction_last: read(pIdx, pRowVals, 'satisfaction_last')||'',
+    satisfaction_avg: read(pIdx, pRowVals, 'satisfaction_avg')||'',
+    notes: read(pIdx, pRowVals, 'notes')||'',
     total_spend: totalSpend
   };
 
@@ -166,6 +178,8 @@ function pc_renderToSheet(tc){
   s.getRange(r,2).setValue(Utilities.formatDate(data.now, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm')); r+=2;
 
   s.getRange(r,1).setValue('Ad Soyad'); s.getRange(r,2).setValue(data.patient.full_name); r++;
+  s.getRange(r,1).setValue('Slug');     s.getRange(r,2).setValue(data.patient.slug||''); r++;
+  s.getRange(r,1).setValue('Patient ID'); s.getRange(r,2).setValue(data.patient.patient_id||''); r++;
   s.getRange(r,1).setValue('TC');       s.getRange(r,2).setValue(data.patient.tc); r++;
   s.getRange(r,1).setValue('Telefon');  s.getRange(r,2).setValue(data.patient.phone); r++;
   s.getRange(r,1).setValue('Adres');    s.getRange(r,2).setValue(data.patient.address); r+=2;
