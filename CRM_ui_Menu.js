@@ -1,9 +1,11 @@
-/* v3.0.0 */
+/* v3.5.0 */
 function onOpen(){
-  SpreadsheetApp.getUi().createMenu('CRM')
-    .addItem('Refresh Dashboard','refreshDashboard')
-    .addItem('Sync Calendar','syncCalendarFromAppointments')
-    .addItem('Update Inventory','updateInventoryStatus')
-    .addItem('Send Daily Reminders','sendDailyReminders')
-    .addToUi();
+  const menu=SpreadsheetApp.getUi().createMenu('CRM');
+  menu.addItem('Trial Quick Entry','openTrialQuickEntry')
+      .addItem('Hasta Kartı','openPatientCard')
+      .addItem('Refresh Dashboard','refreshDashboard')
+      .addItem('Sync Calendar','syncCalendarFromAppointments')
+      .addItem('Update Inventory','updateInventoryStatus')
+      .addItem('Send Daily Reminders','sendDailyReminders')
+      .addToUi();
 }

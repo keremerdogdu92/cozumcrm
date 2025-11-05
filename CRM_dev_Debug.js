@@ -1,6 +1,6 @@
-/* v3.0.0 */
+/* v3.5.0 */
 function debugHeaders(){
-  const ss=SpreadsheetApp.getActive(); const names=Object.keys(HEADERS); let out=[];
+  const ss=SpreadsheetApp.getActive(); const names=Object.keys(SHEET_HEADER_DEFS); let out=[];
   names.forEach(n=>{
     const s=ss.getSheetByName(n); if(!s){ out.push(n+' MISSING'); return; }
     const row1=s.getRange(1,1,1,Math.max(1,s.getLastColumn())).getValues()[0].join(' | ');
