@@ -166,6 +166,7 @@
     const totalSpend = (d.patient.total_spend != null) ? d.patient.total_spend : sumNet(d.sales);
     E('sum').innerHTML = [
       chip('Name', d.patient.full_name||'-'),
+      chip('Slug', d.patient.slug||'-'),
       chip('TC', d.patient.tc||'-'),
       chip('Last Contact', d.patient.last_contact_at||'-'),
       chip('Next Contact', d.patient.next_contact_at||'-'),

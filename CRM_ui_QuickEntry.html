@@ -1,169 +1,289 @@
-<!-- v3.1.0 -->
-<!doctype html><html><head><meta charset="utf-8">
-<style>
-  body{font:13px/1.4 Arial, sans-serif; padding:10px;}
-  .tabbar{display:flex; gap:6px; margin-bottom:8px;}
-  .tabbar button{padding:6px 10px; border:1px solid #ccc; background:#f5f5f5; cursor:pointer}
-  .tabbar button.active{background:#e8f0fe; border-color:#8ab4f8}
-  .panel{display:none} .panel.active{display:block}
-  input,select,textarea{width:100%; box-sizing:border-box; padding:6px; margin:4px 0 10px; border:1px solid #ccc}
-  .row{display:flex; gap:6px} .row>*{flex:1}
-  .hint{color:#666; font-size:12px; margin-top:-6px; margin-bottom:8px}
-  .ok{color:#0a7} .err{color:#b00}
-  ul.suggest{list-style:none; padding:0; margin:4px 0; max-height:120px; overflow:auto; border:1px solid #ddd}
-  ul.suggest li{padding:6px; cursor:pointer}
-  ul.suggest li:hover{background:#eee}
-</style>
-</head><body>
-  <div class="tabbar">
-    <button id="tabTrial" class="active" onclick="sw('trial')">Deneme</button>
-    <button id="tabPatSale" onclick="sw('ps')">Hasta + Satış</button>
-    <button id="tabInter" onclick="sw('int')">Görüşme</button>
-  </div>
+<!-- v3.7.0 -->
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Trial Quick Entry</title>
+  <style>
+    :root{--bg:#f7f9fc; --fg:#1f1f1f; --accent:#1a73e8; --mut:#6c727f; --err:#c62828; --ok:#0a8754; --bd:#d9dde4;}
+    body{margin:0;padding:16px;font:14px/1.4 "Helvetica Neue",Arial,sans-serif;color:var(--fg);background:var(--bg);}
+    h1{font-size:18px;margin:0 0 12px;color:var(--accent);}
+    form{display:flex;flex-direction:column;gap:18px;}
+    .section{background:#fff;border:1px solid var(--bd);border-radius:12px;padding:16px;box-shadow:0 1px 2px rgba(31,41,55,.04);}
+    .section h2{margin:0 0 12px;font-size:15px;color:#2d3748;}
+    label{display:block;font-weight:600;font-size:13px;margin-bottom:6px;color:#2d3748;}
+    input,textarea{width:100%;padding:10px;border:1px solid var(--bd);border-radius:8px;background:#fbfcff;font-size:14px;}
+    textarea{min-height:72px;resize:vertical;}
+    .grid{display:grid;gap:12px;}
+    .grid-2{grid-template-columns:repeat(auto-fit,minmax(180px,1fr));}
+    .slug-preview{font-size:12px;color:var(--mut);margin-top:4px;}
+    table{width:100%;border-collapse:collapse;}
+    th,td{border:1px solid var(--bd);padding:8px;font-size:13px;}
+    th{background:#f2f4f8;text-align:left;}
+    .cell-actions{text-align:center;width:54px;}
+    button{cursor:pointer;border:none;border-radius:999px;padding:10px 16px;font-weight:600;background:var(--accent);color:#fff;transition:background .2s ease;}
+    button[disabled]{background:#c8d2eb;cursor:not-allowed;}
+    .btn-secondary{background:transparent;color:var(--accent);border:1px solid var(--accent);border-radius:8px;padding:6px 10px;font-weight:500;}
+    .btn-row{margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;}
+    .toast{font-weight:600;min-height:20px;}
+    .toast.ok{color:var(--ok);} .toast.err{color:var(--err);} .toast{margin-top:4px;}
+    @media (max-width:640px){body{padding:12px;} .section{padding:14px;} button{width:100%;}}
+  </style>
+</head>
+<body>
+  <h1>Trial Quick Entry</h1>
+  <form id="qeForm" onsubmit="submitForm(event)">
+    <div class="section">
+      <h2>Person</h2>
+      <div>
+        <label for="full_name">Full name</label>
+        <input id="full_name" autocomplete="name" required>
+        <div id="slugPreview" class="slug-preview"></div>
+      </div>
+      <div class="grid grid-2" style="margin-top:12px;">
+        <div>
+          <label for="ref">Reference</label>
+          <input id="ref" required placeholder="Source (required)">
+        </div>
+        <div>
+          <label for="phone">Phone</label>
+          <input id="phone" type="tel" autocomplete="tel" required>
+        </div>
+      </div>
+      <div style="margin-top:12px;">
+        <label for="address">Address</label>
+        <textarea id="address" placeholder="Optional"></textarea>
+      </div>
+    </div>
 
-  <!-- Trial -->
-  <div id="p_trial" class="panel active">
-    <div class="row"><div>
-      <label>Ad Soyad</label><input id="t_name">
-    </div><div>
-      <label>Telefon</label><input id="t_phone">
-    </div></div>
-    <div class="row"><div>
-      <label>TC (opsiyonel)</label><input id="t_tc" maxlength="11">
-    </div><div>
-      <label>Adres</label><input id="t_addr">
-    </div></div>
-    <label>Not</label><textarea id="t_note"></textarea>
-    <button onclick="createTrial()">Deneme Oluştur</button>
-    <div id="t_msg"></div>
-  </div>
+    <div class="section">
+      <h2>Visit details</h2>
+      <div class="grid grid-2">
+        <div>
+          <label for="initial_at">First meeting date</label>
+          <input type="datetime-local" id="initial_at" required>
+        </div>
+        <div>
+          <label for="next_at">Next meeting date</label>
+          <input type="datetime-local" id="next_at" required>
+        </div>
+      </div>
+      <div style="margin-top:12px;">
+        <label for="trial_note">Note</label>
+        <textarea id="trial_note" required placeholder="Visit notes"></textarea>
+      </div>
+      <div style="margin-top:12px;">
+        <label for="payer">Payer (Kurum)</label>
+        <input id="payer" required placeholder="SGK / Private / ...">
+      </div>
+    </div>
 
-  <!-- Patient + Sale -->
-  <div id="p_ps" class="panel">
-    <label>Hasta Ara (isim/TC)</label>
-    <input id="ps_search" oninput="searchPeople(this.value)">
-    <ul id="ps_list" class="suggest"></ul>
-    <div class="hint">Seçersen TC otomatik dolar. Yeni hasta için alanları doldur.</div>
+    <div class="section">
+      <h2>Devices</h2>
+      <table>
+        <thead>
+          <tr><th>Model</th><th>Price (Net)</th><th></th></tr>
+        </thead>
+        <tbody id="devicesBody"></tbody>
+      </table>
+      <div class="btn-row">
+        <button type="button" class="btn-secondary" onclick="addDeviceRow()">Add device</button>
+      </div>
+    </div>
 
-    <div class="row"><div>
-      <label>Ad Soyad</label><input id="ps_name">
-    </div><div>
-      <label>TC</label><input id="ps_tc" maxlength="11">
-    </div></div>
-    <div class="row"><div>
-      <label>Telefon</label><input id="ps_phone">
-    </div><div>
-      <label>Adres</label><input id="ps_addr">
-    </div></div>
-    <div class="row"><div>
-      <label>Satış Tarihi</label><input id="ps_date" type="date">
-    </div><div>
-      <label>Net Tutar</label><input id="ps_net" type="number" step="0.01">
-    </div></div>
-    <div class="row"><div>
-      <label>Ödeme Yöntemi</label>
-      <select id="ps_method"><option value="">-</option><option>kart</option><option>nakit</option><option>taksit</option></select>
-    </div><div>
-      <label>Ödeme Yeri</label>
-      <select id="ps_place"><option value="">-</option><option>firma</option><option>çözüm</option></select>
-    </div></div>
-    <div class="row"><div>
-      <label>SGK Kullanımı</label>
-      <select id="ps_sgk"><option value="false">Hayır</option><option value="true">Evet</option></select>
-    </div><div>
-      <label>Deneme ID (satın aldıysa)</label><input id="ps_trialid" placeholder="opsiyonel">
-    </div></div>
-    <label>Not</label><textarea id="ps_note"></textarea>
-    <button onclick="createPatientSale()">Kaydet (Hasta + Satış)</button>
-    <div id="ps_msg"></div>
-  </div>
+    <button id="submitBtn" type="submit">Save trial</button>
+    <div id="toast" class="toast"></div>
+  </form>
 
-  <!-- Interaction -->
-  <div id="p_int" class="panel">
-    <label>Kişi Ara (isim/TC/DenemeID)</label>
-    <input id="i_search" oninput="searchPeopleInt(this.value)">
-    <ul id="i_list" class="suggest"></ul>
+  <script>
+    const form=document.getElementById('qeForm');
+    const fullNameInput=document.getElementById('full_name');
+    const refInput=document.getElementById('ref');
+    const phoneInput=document.getElementById('phone');
+    const addressInput=document.getElementById('address');
+    const initialInput=document.getElementById('initial_at');
+    const nextInput=document.getElementById('next_at');
+    const noteInput=document.getElementById('trial_note');
+    const payerInput=document.getElementById('payer');
+    const devicesBody=document.getElementById('devicesBody');
+    const submitBtn=document.getElementById('submitBtn');
+    const toast=document.getElementById('toast');
+    const slugPreview=document.getElementById('slugPreview');
 
-    <div class="row"><div>
-      <label>Tür</label>
-      <select id="i_type"><option value="patient">Hasta</option><option value="trial">Deneme</option></select>
-    </div><div>
-      <label>ID (TC veya DenemeID)</label><input id="i_id">
-    </div></div>
-    <div class="row"><div>
-      <label>Yöntem</label>
-      <select id="i_method"><option>call</option><option>visit</option><option>msg</option></select>
-    </div><div>
-      <label>Zaman</label><input id="i_when" type="datetime-local">
-    </div></div>
-    <label>Not</label><textarea id="i_note"></textarea>
-    <div class="row"><div>
-      <label>Memnuniyet (0-10)</label><input id="i_sat" type="number" min="0" max="10">
-    </div><div>
-      <label>Sonraki Aksiyon</label><input id="i_next" type="date">
-    </div></div>
-    <button onclick="addInteraction()">Görüşme Kaydet</button>
-    <div id="i_msg"></div>
-  </div>
+    const ERROR_MESSAGES={
+      missing_full_name:'Full name is required.',
+      missing_ref:'Reference is required.',
+      missing_phone:'Phone is required.',
+      missing_trial_initial_at:'First meeting date is required.',
+      missing_trial_next_at:'Next meeting date is required.',
+      missing_note:'Note is required.',
+      missing_devices:'Add at least one device with model and price.',
+      invalid_device_model:'Each device row needs a model.',
+      invalid_device_price:'Device price must be greater than zero.',
+      missing_sale_payer:'Select a payer (Kurum) for this trial.'
+    };
 
-<script>
-function sw(k){
-  document.querySelectorAll('.tabbar button').forEach(b=>b.classList.remove('active'));
-  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-  if(k==='trial'){ tabTrial.classList.add('active'); p_trial.classList.add('active'); }
-  if(k==='ps'){ tabPatSale.classList.add('active'); p_ps.classList.add('active'); }
-  if(k==='int'){ tabInter.classList.add('active'); p_int.classList.add('active'); }
-}
-// Search lists
-function searchPeople(q){
-  google.script.run.withSuccessHandler(arr=>{
-    ps_list.innerHTML=arr.map(x=>`<li onclick="pickPS('${x.type}','${x.id}','${x.label.replace(/'/g,"&#39;")}')">${x.label}</li>`).join('');
-  }).qe_searchPeople(q);
-}
-function pickPS(type,id,label){
-  if(type==='patient'){ document.getElementById('ps_tc').value=id; }
-  const txt=label.replace(/^\[.*?\]\s*/,'').split('•')[0].trim();
-  document.getElementById('ps_name').value=txt;
-  ps_list.innerHTML='';
-}
-function searchPeopleInt(q){
-  google.script.run.withSuccessHandler(arr=>{
-    i_list.innerHTML=arr.map(x=>`<li onclick="pickINT('${x.type}','${x.id}','${x.label.replace(/'/g,"&#39;")}')">${x.label}</li>`).join('');
-  }).qe_searchPeople(q);
-}
-function pickINT(type,id,label){
-  i_type.value=type; i_id.value=id; i_list.innerHTML='';
-}
-// Actions
-function createTrial(){
-  const payload={
-    full_name: t_name.value, phone: t_phone.value, tc: t_tc.value, address: t_addr.value, notes: t_note.value
-  };
-  google.script.run.withSuccessHandler(r=>{ t_msg.innerHTML=`<span class=ok>Deneme açıldı • ID: ${r.trial_id}</span>`; })
-                   .withFailureHandler(e=>{ t_msg.innerHTML=`<span class=err>${e.message}</span>`; })
-                   .qe_createTrial(payload);
-}
-function createPatientSale(){
-  const payload={
-    full_name: ps_name.value, tc: ps_tc.value, phone: ps_phone.value, address: ps_addr.value,
-    purchase_date: ps_date.value, price_net: ps_net.value, payment_method: ps_method.value,
-    payment_place: ps_place.value, uses_sgk: ps_sgk.value==='true', notes: ps_note.value,
-    trial_id: ps_trialid.value || null
-  };
-  google.script.run.withSuccessHandler(r=>{ ps_msg.innerHTML=`<span class=ok>Kaydedildi • Satış ID: ${r.sale_id} • TC: ${r.tc}</span>`; })
-                   .withFailureHandler(e=>{ ps_msg.innerHTML=`<span class=err>${e.message}</span>`; })
-                   .qe_createPatientWithSale(payload);
-}
-function addInteraction(){
-  const payload={
-    type: i_type.value, id: i_id.value, method: i_method.value,
-    when: i_when.value, note: i_note.value,
-    satisfaction: i_sat.value?Number(i_sat.value):null,
-    next_action_at: i_next.value||null
-  };
-  google.script.run.withSuccessHandler(()=>{ i_msg.innerHTML=`<span class=ok>Görüşme kaydedildi</span>`; })
-                   .withFailureHandler(e=>{ i_msg.innerHTML=`<span class=err>${e.message}</span>`; })
-                   .qe_addInteraction(payload);
-}
-</script>
-</body></html>
+    fullNameInput.addEventListener('input',()=>{
+      const slug=toSlugTrLocal(fullNameInput.value);
+      slugPreview.textContent=slug?`Slug: ${slug}`:'';
+    });
+
+    function toSlugTrLocal(name){
+      const map={"ç":"c","Ç":"c","ğ":"g","Ğ":"g","ı":"i","I":"i","İ":"i","ö":"o","Ö":"o","ş":"s","Ş":"s","ü":"u","Ü":"u","â":"a","Â":"a","î":"i","Î":"i","ê":"e","Ê":"e","ô":"o","Ô":"o","û":"u","Û":"u"};
+      let out=''; let prev=true;
+      for(const ch of String(name||'')){
+        const repl=map[ch]!==undefined?map[ch]:ch.toLowerCase();
+        if(/[a-z0-9]/.test(repl)){ out+=repl; prev=false; continue; }
+        if(/[\s\-\.+]/.test(ch)){ if(!prev) out+='_'; prev=true; }
+      }
+      return out.replace(/_+/g,'_').replace(/^_+|_+$/g,'');
+    }
+
+    function addDeviceRow(data){
+      const tr=document.createElement('tr');
+
+      const modelTd=document.createElement('td');
+      const modelInput=document.createElement('input');
+      modelInput.type='text';
+      modelInput.placeholder='Model';
+      modelInput.value=data&&data.model?data.model:'';
+      modelInput.setAttribute('data-field','model');
+      modelTd.appendChild(modelInput);
+
+      const priceTd=document.createElement('td');
+      const priceInput=document.createElement('input');
+      priceInput.type='number';
+      priceInput.step='0.01';
+      priceInput.min='0';
+      priceInput.placeholder='Net price';
+      priceInput.value=data&&data.price_net?data.price_net:'';
+      priceInput.setAttribute('data-field','price');
+      priceTd.appendChild(priceInput);
+
+      const actionTd=document.createElement('td');
+      actionTd.className='cell-actions';
+      const removeBtn=document.createElement('button');
+      removeBtn.type='button';
+      removeBtn.className='btn-secondary';
+      removeBtn.textContent='✕';
+      removeBtn.addEventListener('click',()=>{
+        tr.remove();
+        if(!devicesBody.children.length){ addDeviceRow(); }
+      });
+      actionTd.appendChild(removeBtn);
+
+      tr.appendChild(modelTd);
+      tr.appendChild(priceTd);
+      tr.appendChild(actionTd);
+      devicesBody.appendChild(tr);
+    }
+
+    function submitForm(event){
+      event.preventDefault();
+      clearToast();
+      const {payload,error}=gatherPayload();
+      if(error){
+        const msg=ERROR_MESSAGES[error.code]||error.message||'Please fix highlighted fields.';
+        showToast('err',msg);
+        return;
+      }
+      const validationError=validatePayload(payload);
+      if(validationError){
+        const msg=ERROR_MESSAGES[validationError]||'Please complete all required fields.';
+        showToast('err',msg);
+        return;
+      }
+      submitBtn.disabled=true;
+      google.script.run
+        .withSuccessHandler(res=>{
+          submitBtn.disabled=false;
+          if(res && res.ok){
+            showToast('ok',`Trial saved • ${res.patient_slug} • ${res.trial_id}`);
+            clearVisitFields();
+          }else if(res){
+            const msg=ERROR_MESSAGES[res.code]||res.message||'Unable to save trial.';
+            showToast('err',msg);
+          }else{
+            showToast('err','Unexpected response from server.');
+          }
+        })
+        .withFailureHandler(err=>{
+          submitBtn.disabled=false;
+          showToast('err',(err && err.message) ? err.message : 'Unexpected error.');
+        })
+        .qe_upsertTrialCase(payload);
+    }
+
+    function gatherPayload(){
+      const person={
+        full_name:fullNameInput.value.trim(),
+        ref:refInput.value.trim(),
+        phone:phoneInput.value.trim(),
+        address:addressInput.value.trim()
+      };
+      const trial={
+        initial_at:initialInput.value?new Date(initialInput.value):null,
+        next_at:nextInput.value?new Date(nextInput.value):null,
+        note:noteInput.value.trim()
+      };
+      const sale={ payer:payerInput.value.trim() };
+      const deviceResult=collectDevices();
+      if(deviceResult.error){ return {error:deviceResult.error}; }
+      const payload={ person, trial, sale, devices:deviceResult.devices };
+      if(!payload.devices.length){ return {error:{code:'missing_devices'}}; }
+      return {payload};
+    }
+
+    function collectDevices(){
+      const rows=[];
+      const trs=devicesBody.querySelectorAll('tr');
+      for(let i=0;i<trs.length;i++){
+        const tr=trs[i];
+        const modelInput=tr.querySelector('input[data-field="model"]');
+        const priceInput=tr.querySelector('input[data-field="price"]');
+        const model=(modelInput?modelInput.value:'').trim();
+        const priceValue=(priceInput?priceInput.value:'').trim();
+        if(!model && !priceValue){ continue; }
+        if(!model){ return {error:{code:'invalid_device_model'}}; }
+        const price=Number(priceValue);
+        if(!priceValue || !isFinite(price) || price<=0){ return {error:{code:'invalid_device_price'}}; }
+        rows.push({model, price_net:price});
+      }
+      return {devices:rows};
+    }
+
+    function validatePayload(payload){
+      if(!payload.person.full_name){ return 'missing_full_name'; }
+      if(!payload.person.ref){ return 'missing_ref'; }
+      if(!payload.person.phone){ return 'missing_phone'; }
+      if(!(payload.trial.initial_at instanceof Date) || isNaN(payload.trial.initial_at.getTime())){ return 'missing_trial_initial_at'; }
+      if(!(payload.trial.next_at instanceof Date) || isNaN(payload.trial.next_at.getTime())){ return 'missing_trial_next_at'; }
+      if(!payload.trial.note){ return 'missing_note'; }
+      if(!payload.sale.payer){ return 'missing_sale_payer'; }
+      if(!payload.devices.length){ return 'missing_devices'; }
+      return null;
+    }
+
+    function clearVisitFields(){
+      initialInput.value='';
+      nextInput.value='';
+      noteInput.value='';
+      while(devicesBody.firstChild){ devicesBody.removeChild(devicesBody.firstChild); }
+      addDeviceRow();
+    }
+
+    function showToast(kind,message){
+      toast.textContent=message;
+      toast.className=kind==='ok'?'toast ok':'toast err';
+    }
+
+    function clearToast(){
+      toast.textContent='';
+      toast.className='toast';
+    }
+
+    addDeviceRow();
+  </script>
+</body>
+</html>
