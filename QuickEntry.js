@@ -214,7 +214,7 @@ function qe_buildTrialNote_(note, offerSummary, sgk){
   const trimmed = note ? String(note).trim() : '';
   if(trimmed){ parts.push(trimmed); }
   if(offerSummary){ parts.push(offerSummary); }
-  if(sgk){ parts.push('SGK: '+sgk); }
+  if(sgk){ parts.push('Payer: '+sgk); }
   return parts.join(' | ');
 }
 
